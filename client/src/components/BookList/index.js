@@ -1,21 +1,19 @@
 import React, { Component } from 'react';
 import { graphql } from 'react-apollo';
 
+
 import { getBooksQuery } from '../../queries';
-
-import BookDetails from '../BookDetails';
-
 
 class BookList extends Component {
   state = {
     selected: null,
   }
 
-  chooseBook = id => this.setState({ selected: id });
+  chooseBook = id => this.props.history.push(`/book/${id}`);
 
   componentDidUpdate(prevProps, prevState) {
     if (this.props.data !== prevProps.data) {
-      console.log(this.props.data);
+      console.log(this.props);
     }
   }
 
@@ -34,7 +32,6 @@ class BookList extends Component {
         <ul className="book-list">
           {this.displayBooks()}
         </ul>
-        <BookDetails bookId={this.state.selected} />
       </div>
     );
   }

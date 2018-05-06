@@ -1,8 +1,13 @@
 const graphql = require('graphql');
 const _ = require('lodash');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+
+const { secret } = require('../config');
 
 const Book = require('../models/book');
 const Author = require('../models/author');
+const User = require('../models/user');
 
 const {
   GraphQLObjectType,
@@ -53,8 +58,31 @@ const AuthorType = new GraphQLObjectType({
       type: new GraphQLList(BookType),
       resolve(parent, args) {
         // return _.filter(books, { authorid: parent.id })
-        return Book.find({ authorId: parent.id });
+        return Book.find({
+          authorId: parent.id
+        });
       }
+    }
+  })
+});
+
+const UserType = new GraphQLObjectType({
+  name: 'Users',
+  fields: () => ({
+    id: {
+      type: GraphQLID
+    },
+    username: {
+      type: GraphQLString
+    },
+    email: {
+      type: GraphQLString
+    },
+    password: {
+      type: GraphQLString
+    },
+    token: {
+      type: GraphQLString
     }
   })
 });
@@ -112,8 +140,12 @@ const Mutations = new GraphQLObjectType({
     addAuthor: {
       type: AuthorType,
       args: {
-        name: { type: new GraphQLNonNull(GraphQLString) },
-        age: { type: new GraphQLNonNull(GraphQLInt) }
+        name: {
+          type: new GraphQLNonNull(GraphQLString)
+        },
+        age: {
+          type: new GraphQLNonNull(GraphQLInt)
+        }
       },
       resolve(parent, args) {
         let author = new Author({
@@ -126,9 +158,15 @@ const Mutations = new GraphQLObjectType({
     addBook: {
       type: BookType,
       args: {
-        name: { type: new GraphQLNonNull(GraphQLString) },
-        genre: { type: new GraphQLNonNull(GraphQLString) },
-        authorId: { type: new GraphQLNonNull(GraphQLID) }
+        name: {
+          type: new GraphQLNonNull(GraphQLString)
+        },
+        genre: {
+          type: new GraphQLNonNull(GraphQLString)
+        },
+        authorId: {
+          type: new GraphQLNonNull(GraphQLID)
+        }
       },
       resolve(parent, args) {
         const book = new Book({
@@ -137,6 +175,65 @@ const Mutations = new GraphQLObjectType({
           authorId: args.authorId
         });
         return book.save();
+      }
+    },
+    registration: {
+      type: UserType,
+      args: {
+        username: {
+          type: new GraphQLNonNull(GraphQLString)
+        },
+        email: {
+          type: new GraphQLNonNull(GraphQLString)
+        },
+        password: { type: new GraphQLNonNull(GraphQLString) }
+      },
+      resolve: async (parent, args) => {
+        const { username, email, password } = args;
+        const hashedPassword = await bcrypt.hash(password, 14);
+
+        const user = new User({
+          username,
+          email,
+          hashedPassword
+        });
+
+        return user.save();
+      }
+    },
+    login: {
+      type: new GraphQLObjectType({
+        name: 'login',
+        fields: {
+          token: { type: GraphQLString },
+          username: { type: GraphQLString },
+        }
+      }),
+      args: {
+        usernameOrEmail: {
+          type: new GraphQLNonNull(GraphQLString)
+        },
+        password: { type: new GraphQLNonNull(GraphQLString) }
+      },
+      resolve: async (parent, args, ctx) => {
+        const user = await User.findOne({
+          $or: [{ username: args.usernameOrEmail }, { email: args.user }]
+        });
+
+        if (!user) {
+          throw new Error('Not user with that email');
+        }
+
+        const valid = await bcrypt.compare(args.password, user.hashedPassword);
+
+        if (!valid) {
+          throw new Error('Invalid Password');
+        }
+
+        ctx.username = user.username;
+        ctx.token = jwt.sign({ user: _.pick(user, ['id', 'username']) }, secret, { expiresIn: '1d' });
+
+        return ctx;
       }
     }
   }

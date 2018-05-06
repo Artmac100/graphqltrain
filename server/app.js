@@ -5,6 +5,8 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const morgan = require('morgan');
 
+const verifyUser = require('./middleware/verifyUser')
+
 const { port, dataBaseConnection } = require('./config');
 
 
@@ -17,6 +19,7 @@ mongoose.connection.once('open', () => console.log('connected to db'));
 
 app.use(morgan('combined'))
 app.use(cors())
+// app.use(verifyUser)
 app.use('/graphql', qraphqlHTTP({
   schema,
   graphiql: true
